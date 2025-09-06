@@ -6,13 +6,17 @@ from faker import Faker
 
 fake = Faker()
 
+# Define the four patient names for which to generate data
 PATIENT_NAMES = ["Alice", "Bob", "Charlie", "Diana"]
 API_URL = "http://localhost:8000/api/v1/ingest_data/"
+CREATE_PATIENT_URL = "http://localhost:8000/api/v1/create_patient"
 
 def generate_and_send_data():
     """Generates and sends a single fake reading to the FastAPI server."""
+    # Select a patient name to use as the PID
     pid = random.choice(PATIENT_NAMES)
     
+    # Generate the fake vital signs data
     vital_reading = {
         "bp": {"systolic": random.randint(90, 140), "diastolic": random.randint(60, 90)},
         "spo2": round(random.uniform(95.0, 99.9), 1),
@@ -23,6 +27,7 @@ def generate_and_send_data():
     }
 
     try:
+        # The pid is included in the URL, not in the JSON body
         response = requests.post(f"{API_URL}{pid}", json=vital_reading)
         if response.status_code == 200:
             print(f"[{datetime.now().strftime('%H:%M:%S')}] Data for {pid} sent successfully.")
@@ -35,6 +40,7 @@ def generate_and_send_data():
         print(e)
     
 if __name__ == "__main__":
+    # Create the initial patient documents for the specific names
     for name in PATIENT_NAMES:
         patient_data = {
             "pid": name,
@@ -45,13 +51,17 @@ if __name__ == "__main__":
             "doctor": {
                 "did": str(random.randint(100, 999)),
                 "name": fake.name(),
+                "specialization": "Cardiology"
             }
         }
         try:
-            requests.post("http://localhost:8000/api/v1/create_patient", json=patient_data)
-            print(f"Initial patient {name} created.")
+            response = requests.post(CREATE_PATIENT_URL, json=patient_data)
+            if response.status_code == 200:
+                print(f"Initial patient {name} created successfully.")
+            else:
+                print(f"Failed to create patient {name}. Status code: {response.status_code}. Response: {response.text}")
         except requests.exceptions.ConnectionError:
-            print(f"Could not create patient {name}. Is the FastAPI server running?")
+            print(f"Could not connect to API. Is the FastAPI server running?")
             break
     
     print("Starting continuous data generation. Press Ctrl+C to stop.")

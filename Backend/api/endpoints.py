@@ -6,8 +6,6 @@ from services.alert_sender import send_alert_via_orchestrator
 import os
 import uuid
 
-# Remove this line: db_manager = DBManager(os.getenv("MONGO_URL"))
-
 router = APIRouter()
 
 def get_db_manager():
@@ -22,31 +20,24 @@ async def ingest_patient_data(pid: str, vital_reading: VitalReading, db_manager:
     """
     Main endpoint to ingest patient data, run anomaly checks, and trigger alerts.
     """
-    # 1. Fetch Patient Data
     patient_doc = await db_manager.get_patient(pid)
     if not patient_doc:
         raise HTTPException(status_code=404, detail="Patient not found")
     
-    # 2. Get historical data for anomaly detection
     history_docs = await db_manager.get_last_n_readings(pid, n=50)
 
-    # 3. Perform a multi-method anomaly check
     rule_result = check_rule_based_anomaly(vital_reading)
     ewma_result = check_ewma_anomaly(vital_reading, pid, history_docs)
     
-    # 4. Consolidate results into a single risk score
     risk_fusion_result = calculate_risk_score(rule_result, ewma_result)
-    
     is_anomaly = risk_fusion_result['should_alert']
 
-    # 5. Consolidated Alerting
     if is_anomaly:
         alert_message = f"Critical Alert for Patient {patient_doc['name']}. Risk Score: {risk_fusion_result['risk_score']:.2f}. "
         alert_message += f"Triggered Methods: {', '.join(risk_fusion_result['triggered_methods'])}"
             
         alert_id = str(uuid.uuid4())
         
-        # Add alert to database
         alert = Alert(
             aid=alert_id, 
             anomaly_type=risk_fusion_result['alert_level'], 
@@ -54,10 +45,8 @@ async def ingest_patient_data(pid: str, vital_reading: VitalReading, db_manager:
         )
         await db_manager.add_alert(pid, alert)
 
-        # Trigger the AI Orchestrator
         await send_alert_via_orchestrator(patient_doc, alert_message)
 
-    # 6. Save the new Vital Reading to the database
     await db_manager.add_vital_reading(pid, vital_reading)
     
     return {
