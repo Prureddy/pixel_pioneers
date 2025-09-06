@@ -1,7 +1,6 @@
 from motor.motor_asyncio import AsyncIOMotorClient
-from models.patient_data import Patient, PatientUpdate, VitalReading, Alert
+from models.patient_data import Patient, VitalReading, Alert
 import os
-from bson import ObjectId
 
 class DBManager:
     def __init__(self, mongo_url: str):

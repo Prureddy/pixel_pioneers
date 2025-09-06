@@ -5,4 +5,8 @@ pymongo
 faker
 python-dotenv
 twilio
-requests>=2.28.0
+motor 
+numpy
+scikit-learn
+pandas
+requests

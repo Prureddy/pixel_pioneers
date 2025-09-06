@@ -1,60 +1,73 @@
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Depends
 from models.patient_data import VitalReading, Patient, Alert
 from services.db_manager import DBManager
-from services.anomaly_detector import check_ml_anomaly, check_historical_anomaly
+from services.anomaly_detector import check_rule_based_anomaly, check_ewma_anomaly, calculate_risk_score
 from services.alert_sender import send_alert_via_orchestrator
 import os
 import uuid
 
+# Remove this line: db_manager = DBManager(os.getenv("MONGO_URL"))
+
 router = APIRouter()
-db_manager = DBManager(os.getenv("MONGO_URL"))
+
+def get_db_manager():
+    """Dependency to provide a DBManager instance with the correct URI."""
+    mongo_url = os.getenv("MONGO_URL")
+    if not mongo_url:
+        raise HTTPException(status_code=500, detail="MONGO_URL environment variable is not set.")
+    return DBManager(mongo_url)
 
 @router.post("/ingest_data/{pid}")
-async def ingest_patient_data(pid: str, vital_reading: VitalReading):
+async def ingest_patient_data(pid: str, vital_reading: VitalReading, db_manager: DBManager = Depends(get_db_manager)):
     """
     Main endpoint to ingest patient data, run anomaly checks, and trigger alerts.
     """
     # 1. Fetch Patient Data
-    patient = await db_manager.get_patient(pid)
-    if not patient:
+    patient_doc = await db_manager.get_patient(pid)
+    if not patient_doc:
         raise HTTPException(status_code=404, detail="Patient not found")
-        
-    # 2. ML Anomaly Check
-    is_ml_anomaly = check_ml_anomaly(vital_reading)
     
-    # 3. Save Vital Reading to DB
-    await db_manager.add_vital_reading(pid, vital_reading)
+    # 2. Get historical data for anomaly detection
+    history_docs = await db_manager.get_last_n_readings(pid, n=50)
+
+    # 3. Perform a multi-method anomaly check
+    rule_result = check_rule_based_anomaly(vital_reading)
+    ewma_result = check_ewma_anomaly(vital_reading, pid, history_docs)
     
-    # 4. Historical Anomaly Check
-    history = await db_manager.get_last_n_readings(pid, n=10)
-    is_historical_anomaly = check_historical_anomaly(vital_reading, history)
+    # 4. Consolidate results into a single risk score
+    risk_fusion_result = calculate_risk_score(rule_result, ewma_result)
     
+    is_anomaly = risk_fusion_result['should_alert']
+
     # 5. Consolidated Alerting
-    if is_ml_anomaly or is_historical_anomaly:
-        alert_message = f"Critical Alert for Patient {patient['name']}."
-        if is_ml_anomaly:
-            alert_message += " ML model detected an anomaly."
-        if is_historical_anomaly:
-            alert_message += " Readings differ significantly from historical data."
+    if is_anomaly:
+        alert_message = f"Critical Alert for Patient {patient_doc['name']}. Risk Score: {risk_fusion_result['risk_score']:.2f}. "
+        alert_message += f"Triggered Methods: {', '.join(risk_fusion_result['triggered_methods'])}"
             
         alert_id = str(uuid.uuid4())
-        anomaly_type = "Combined Anomaly" if is_ml_anomaly and is_historical_anomaly else ("ML Anomaly" if is_ml_anomaly else "Historical Anomaly")
         
         # Add alert to database
-        alert = Alert(aid=alert_id, anomaly_type=anomaly_type, message=alert_message)
+        alert = Alert(
+            aid=alert_id, 
+            anomaly_type=risk_fusion_result['alert_level'], 
+            message=alert_message
+        )
         await db_manager.add_alert(pid, alert)
 
         # Trigger the AI Orchestrator
-        await send_alert_via_orchestrator(patient, alert_message)
+        await send_alert_via_orchestrator(patient_doc, alert_message)
+
+    # 6. Save the new Vital Reading to the database
+    await db_manager.add_vital_reading(pid, vital_reading)
     
     return {
         "message": "Data ingested successfully",
-        "ml_anomaly": is_ml_anomaly,
-        "historical_anomaly": is_historical_anomaly
+        "risk_score": risk_fusion_result['risk_score'],
+        "alert_level": risk_fusion_result['alert_level']
     }
 
 @router.post("/create_patient")
-async def create_patient(patient: Patient):
+async def create_patient(patient: Patient, db_manager: DBManager = Depends(get_db_manager)):
     """
     Endpoint to create a new patient record.
     """

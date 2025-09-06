@@ -4,7 +4,8 @@ import uvicorn
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+# This line is CRITICAL to load the .env file before anything else
+load_dotenv() 
 
 app = FastAPI(
     title="Patient Monitoring System",

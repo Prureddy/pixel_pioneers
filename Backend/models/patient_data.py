@@ -20,6 +20,8 @@ class Doctor(BaseModel):
     did: str
     name: str
     specialization: str
+    phone: Optional[str] = None
+    email: Optional[str] = None
 
 class Patient(BaseModel):
     pid: str
@@ -30,9 +32,3 @@ class Patient(BaseModel):
     doctor: Doctor
     vitals: List[VitalReading] = []
     alerts: List[Alert] = []
-
-class PatientUpdate(BaseModel):
-    pid: str
-    vital_reading: VitalReading
-    ml_anomaly: bool
-    historical_anomaly: bool
