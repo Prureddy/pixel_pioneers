@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { VitalsDashboard } from '@/components/VitalsDashboard';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { useState, useEffect } from "react";
+import { VitalsDashboard } from "@/components/VitalsDashboard";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { 
   User, 
   Clock, 
@@ -12,64 +12,94 @@ import {
   Droplets,
   Phone,
   MessageCircle
-} from 'lucide-react';
+} from "lucide-react";
 
 // Mock patient data
 const mockPatient = {
-  id: 'P001',
-  name: 'John Anderson',
+  id: "P001",
+  name: "John Anderson",
   age: 58,
-  gender: 'Male',
-  dateOfBirth: '1965-03-15',
-  bloodType: 'A+',
-  allergies: ['Penicillin', 'Shellfish'],
+  gender: "Male",
+  dateOfBirth: "1965-03-15",
+  bloodType: "A+",
+  allergies: ["Penicillin", "Shellfish"],
   emergencyContact: {
-    name: 'Mary Anderson',
-    relationship: 'Spouse',
-    phone: '(555) 123-4567'
+    name: "Mary Anderson",
+    relationship: "Spouse",
+    phone: "(555) 123-4567",
   },
   doctor: {
-    name: 'Dr. Amanda Smith',
-    department: 'Cardiology',
-    phone: '(555) 987-6543'
+    name: "Dr. Amanda Smith",
+    department: "Cardiology",
+    phone: "(555) 987-6543",
   },
-  conditions: ['Hypertension', 'Type 2 Diabetes'],
+  conditions: ["Hypertension", "Type 2 Diabetes"],
   medications: [
-    { name: 'Lisinopril', dosage: '10mg', frequency: 'Once daily' },
-    { name: 'Metformin', dosage: '500mg', frequency: 'Twice daily' },
-    { name: 'Atorvastatin', dosage: '20mg', frequency: 'Once daily' }
-  ]
+    { name: "Lisinopril", dosage: "10mg", frequency: "Once daily" },
+    { name: "Metformin", dosage: "500mg", frequency: "Twice daily" },
+    { name: "Atorvastatin", dosage: "20mg", frequency: "Once daily" },
+  ],
 };
 
 const healthInsights = [
   {
-    type: 'positive',
-    title: 'Heart Rate Stable',
-    description: 'Your heart rate has been consistently within the normal range over the past 24 hours.',
+    type: "positive",
+    title: "Heart Rate Stable",
+    description: "Your heart rate has been consistently within the normal range over the past 24 hours.",
     icon: Heart,
-    color: 'text-green-500'
+    color: "text-green-500",
   },
   {
-    type: 'neutral',
-    title: 'Blood Pressure Monitoring',
-    description: 'Your blood pressure shows slight elevation. Continue taking medication as prescribed.',
+    type: "neutral",
+    title: "Blood Pressure Monitoring",
+    description: "Your blood pressure shows slight elevation. Continue taking medication as prescribed.",
     icon: Activity,
-    color: 'text-yellow-500'
+    color: "text-yellow-500",
   },
   {
-    type: 'positive',
-    title: 'Temperature Normal',
-    description: 'Body temperature remains stable and within healthy range.',
+    type: "positive",
+    title: "Temperature Normal",
+    description: "Body temperature remains stable and within healthy range.",
     icon: Thermometer,
-    color: 'text-green-500'
-  }
+    color: "text-green-500",
+  },
 ];
 
 export default function PatientView() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'vitals' | 'health-info'>('overview');
+  const [activeTab, setActiveTab] = useState<"overview" | "vitals" | "health-info">("overview");
+
+  // Chatbase embed script
+  useEffect(() => {
+    if (!window.chatbase || window.chatbase("getState") !== "initialized") {
+      window.chatbase = (...args) => {
+        if (!window.chatbase.q) window.chatbase.q = [];
+        window.chatbase.q.push(args);
+      };
+      window.chatbase = new Proxy(window.chatbase, {
+        get(target, prop) {
+          if (prop === "q") return target.q;
+          return (...args) => target(prop, ...args);
+        },
+      });
+    }
+    const onLoad = () => {
+      const script = document.createElement("script");
+      script.src = "https://www.chatbase.co/embed.min.js";
+      script.id = "6qJi4KpsuUDkXM45FHh4u";
+      // @ts-ignore
+      script.domain = "www.chatbase.co";
+      document.body.appendChild(script);
+    };
+    if (document.readyState === "complete") {
+      onLoad();
+    } else {
+      window.addEventListener("load", onLoad);
+      return () => window.removeEventListener("load", onLoad);
+    }
+  }, []);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative">
       {/* Header */}
       <div className="bg-black text-white p-6 shadow-lg">
         <div className="max-w-6xl mx-auto">
@@ -140,14 +170,14 @@ export default function PatientView() {
       <div className="max-w-6xl mx-auto px-6 py-4">
         <div className="flex gap-2">
           {[
-            { id: 'overview', label: 'Overview', icon: Activity },
-            { id: 'vitals', label: 'Vital Signs', icon: Heart },
-            { id: 'health-info', label: 'Health Information', icon: User }
+            { id: "overview", label: "Overview", icon: Activity },
+            { id: "vitals", label: "Vital Signs", icon: Heart },
+            { id: "health-info", label: "Health Information", icon: User },
           ].map((tab) => (
             <Button
               key={tab.id}
               variant={activeTab === tab.id ? "default" : "outline"}
-              onClick={() => setActiveTab(tab.id as 'overview' | 'vitals' | 'health-info')}
+              onClick={() => setActiveTab(tab.id as "overview" | "vitals" | "health-info")}
               className="flex items-center gap-2"
             >
               <tab.icon className="w-4 h-4" />
@@ -159,13 +189,15 @@ export default function PatientView() {
 
       {/* Content */}
       <div className="max-w-6xl mx-auto px-6 pb-6">
-        {activeTab === 'overview' && (
+        {activeTab === "overview" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Health Insights */}
             <div className="lg:col-span-2 space-y-4">
               <h2 className="text-xl font-semibold text-foreground mb-4">Health Insights</h2>
               {healthInsights.map((insight, index) => (
-                <Card key={index} className="p-4 bg-white/50 backdrop-blur-md border border-white/20 shadow-md animate-fade-in">
+                <Card
+                  key={index}
+                  className="p-4 bg-white/50 backdrop-blur-md border border-white/20 shadow-md animate-fade-in"
+                >
                   <div className="flex items-start gap-3">
                     <insight.icon className={`w-6 h-6 mt-1 ${insight.color}`} />
                     <div>
@@ -212,15 +244,11 @@ export default function PatientView() {
           </div>
         )}
 
-        {activeTab === 'vitals' && (
-          <VitalsDashboard 
-            patientId={mockPatient.id}
-            patientName={mockPatient.name}
-            isRealTime={true}
-          />
+        {activeTab === "vitals" && (
+          <VitalsDashboard patientId={mockPatient.id} patientName={mockPatient.name} isRealTime={true} />
         )}
 
-        {activeTab === 'health-info' && (
+        {activeTab === "health-info" && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Personal Information */}
             <Card className="p-6 bg-white/50 backdrop-blur-md border border-white/20 shadow-md">
@@ -286,6 +314,8 @@ export default function PatientView() {
           </div>
         )}
       </div>
+
+      {/* Floating Chatbox */}
     </div>
   );
 }

@@ -4,7 +4,24 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Heart, Thermometer, Activity, Droplets, Clock, Calendar } from 'lucide-react';
+import { Heart, Thermometer, Clock, Calendar } from 'lucide-react';
+
+// -------------------------
+// Types
+// -------------------------
+interface VitalDataPoint {
+  time: string;
+  value: number;
+}
+
+interface VitalsData {
+  heartRate: VitalDataPoint[];
+  bloodPressureSystolic: VitalDataPoint[];
+  bloodPressureDiastolic: VitalDataPoint[];
+  temperature: VitalDataPoint[];
+  oxygenSaturation: VitalDataPoint[];
+  respirationRate: VitalDataPoint[];
+}
 
 interface VitalsDashboardProps {
   patientId: string;
@@ -12,34 +29,89 @@ interface VitalsDashboardProps {
   isRealTime?: boolean;
 }
 
-export function VitalsDashboard({ patientId, patientName, isRealTime = true }: VitalsDashboardProps) {
-  const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h' | '7d'>('6h');
-  const [vitalsData, setVitalsData] = useState<any>({});
+// Mock data point type for generation
+interface MockVitalPoint {
+  time: string;
+  heartRate: number;
+  bloodPressureSystolic: number;
+  bloodPressureDiastolic: number;
+  temperature: number;
+  oxygenSaturation: number;
+  respirationRate: number;
+}
 
-  // Mock data generator
-  const generateMockData = (hours: number) => {
+// -------------------------
+// Small Reusable Components
+// -------------------------
+const LiveBadge = () => (
+  <Badge className="bg-white/20 text-white border-white/30 animate-pulse-glow">
+    <div className="w-2 h-2 rounded-full bg-green-400 mr-2" />
+    Live
+  </Badge>
+);
+
+interface VitalCardProps {
+  title: string;
+  unit: string;
+  color: string;
+  data: VitalDataPoint[];
+  normalRange?: { min: number; max: number };
+}
+
+const VitalCard = ({ title, unit, color, data, normalRange }: VitalCardProps) => {
+  return (
+    <Card className="p-6 bg-glass backdrop-blur-md border-glass-border shadow-glass hover:shadow-glow transition-all duration-300">
+      <VitalChart data={data} title={title} unit={unit} color={color} normalRange={normalRange} />
+    </Card>
+  );
+};
+
+// -------------------------
+// Main Component
+// -------------------------
+export function VitalsDashboard({
+  patientId,
+  patientName,
+  isRealTime = true,
+}: VitalsDashboardProps) {
+  const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h' | '7d'>('6h');
+  const [vitalsData, setVitalsData] = useState<VitalsData>({
+    heartRate: [],
+    bloodPressureSystolic: [],
+    bloodPressureDiastolic: [],
+    temperature: [],
+    oxygenSaturation: [],
+    respirationRate: [],
+  });
+
+  // -------------------------
+  // Mock Data Generator
+  // -------------------------
+  const generateMockData = (hours: number): MockVitalPoint[] => {
     const now = new Date();
-    const data = [];
-    
+    const data: MockVitalPoint[] = [];
     for (let i = hours * 12; i >= 0; i--) {
       const time = new Date(now.getTime() - i * 5 * 60000); // 5-minute intervals
       data.push({
         time: time.toISOString(),
-        heartRate: Math.floor(Math.random() * 30) + 70 + (Math.sin(i / 10) * 10),
-        bloodPressureSystolic: Math.floor(Math.random() * 20) + 110 + (Math.sin(i / 8) * 5),
-        bloodPressureDiastolic: Math.floor(Math.random() * 15) + 70 + (Math.sin(i / 8) * 3),
-        temperature: 98.6 + (Math.random() - 0.5) * 2 + (Math.sin(i / 15) * 0.5),
-        oxygenSaturation: Math.floor(Math.random() * 5) + 95 + (Math.sin(i / 12) * 2),
-        respirationRate: Math.floor(Math.random() * 8) + 16 + (Math.sin(i / 7) * 2),
+        heartRate: Math.floor(Math.random() * 30) + 70 + Math.sin(i / 10) * 10,
+        bloodPressureSystolic: Math.floor(Math.random() * 20) + 110 + Math.sin(i / 8) * 5,
+        bloodPressureDiastolic: Math.floor(Math.random() * 15) + 70 + Math.sin(i / 8) * 3,
+        temperature: 98.6 + (Math.random() - 0.5) * 2 + Math.sin(i / 15) * 0.5,
+        oxygenSaturation: Math.floor(Math.random() * 5) + 95 + Math.sin(i / 12) * 2,
+        respirationRate: Math.floor(Math.random() * 8) + 16 + Math.sin(i / 7) * 2,
       });
     }
     return data;
   };
 
+  // -------------------------
+  // Load Vitals Based on Time Range
+  // -------------------------
   useEffect(() => {
     const hours = timeRange === '1h' ? 1 : timeRange === '6h' ? 6 : timeRange === '24h' ? 24 : 168;
     const data = generateMockData(hours);
-    
+
     setVitalsData({
       heartRate: data.map(d => ({ time: d.time, value: d.heartRate })),
       bloodPressureSystolic: data.map(d => ({ time: d.time, value: d.bloodPressureSystolic })),
@@ -50,12 +122,14 @@ export function VitalsDashboard({ patientId, patientName, isRealTime = true }: V
     });
   }, [timeRange]);
 
-  // Simulate real-time updates
+  // -------------------------
+  // Simulate Real-Time Updates
+  // -------------------------
   useEffect(() => {
     if (!isRealTime) return;
-    
+
     const interval = setInterval(() => {
-      setVitalsData((prev: any) => {
+      setVitalsData(prev => {
         const now = new Date().toISOString();
         const newPoint = {
           time: now,
@@ -76,11 +150,14 @@ export function VitalsDashboard({ patientId, patientName, isRealTime = true }: V
           respirationRate: [...prev.respirationRate.slice(-50), { time: now, value: newPoint.respirationRate }],
         };
       });
-    }, 5000); // Update every 5 seconds
+    }, 5000);
 
     return () => clearInterval(interval);
   }, [isRealTime]);
 
+  // -------------------------
+  // Time Range Options
+  // -------------------------
   const timeRangeOptions = [
     { value: '1h', label: '1H', icon: Clock },
     { value: '6h', label: '6H', icon: Clock },
@@ -88,9 +165,12 @@ export function VitalsDashboard({ patientId, patientName, isRealTime = true }: V
     { value: '7d', label: '7D', icon: Calendar },
   ];
 
+  // -------------------------
+  // Render
+  // -------------------------
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Patient Header */}
       <Card className="p-6 bg-gradient-warm text-white shadow-glow">
         <div className="flex items-center justify-between">
           <div>
@@ -98,12 +178,7 @@ export function VitalsDashboard({ patientId, patientName, isRealTime = true }: V
             <p className="opacity-90">Patient ID: {patientId}</p>
           </div>
           <div className="flex items-center gap-2">
-            {isRealTime && (
-              <Badge className="bg-white/20 text-white border-white/30 animate-pulse-glow">
-                <div className="w-2 h-2 rounded-full bg-green-400 mr-2" />
-                Live
-              </Badge>
-            )}
+            {isRealTime && <LiveBadge />}
             <Badge className="bg-white/20 text-white border-white/30">
               Last Update: {new Date().toLocaleTimeString()}
             </Badge>
@@ -114,13 +189,13 @@ export function VitalsDashboard({ patientId, patientName, isRealTime = true }: V
       {/* Time Range Selector */}
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium text-muted-foreground">Time Range:</span>
-        {timeRangeOptions.map((option) => (
+        {timeRangeOptions.map(option => (
           <Button
             key={option.value}
-            variant={timeRange === option.value ? "default" : "outline"}
-            size="sm"
+            variant={timeRange === option.value ? 'default' : 'outline'}
+            // Add a min-width and adjust padding to ensure text is visible
+            className="h-8 min-w-[50px] px-3 py-1 flex items-center justify-center text-xs" 
             onClick={() => setTimeRange(option.value as any)}
-            className="h-8"
           >
             <option.icon className="w-3 h-3 mr-1" />
             {option.label}
@@ -128,7 +203,7 @@ export function VitalsDashboard({ patientId, patientName, isRealTime = true }: V
         ))}
       </div>
 
-      {/* Vital Signs Charts */}
+      {/* Vital Signs Tabs */}
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -138,38 +213,41 @@ export function VitalsDashboard({ patientId, patientName, isRealTime = true }: V
           <TabsTrigger value="blood-pressure">Blood Pressure</TabsTrigger>
         </TabsList>
 
+        {/* ------------------------- */}
+        {/* Overview Tab */}
+        {/* ------------------------- */}
         <TabsContent value="overview" className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <VitalChart
-              data={vitalsData.heartRate || []}
+            <VitalCard
+              data={vitalsData.heartRate}
               title="Heart Rate"
               unit="bpm"
               color="hsl(var(--destructive))"
               normalRange={{ min: 60, max: 100 }}
             />
-            <VitalChart
-              data={vitalsData.bloodPressureSystolic || []}
+            <VitalCard
+              data={vitalsData.bloodPressureSystolic}
               title="Blood Pressure (Systolic)"
               unit="mmHg"
               color="hsl(var(--primary))"
               normalRange={{ min: 90, max: 140 }}
             />
-            <VitalChart
-              data={vitalsData.temperature || []}
+            <VitalCard
+              data={vitalsData.temperature}
               title="Temperature"
               unit="°F"
               color="hsl(var(--warning))"
               normalRange={{ min: 97, max: 99 }}
             />
-            <VitalChart
-              data={vitalsData.oxygenSaturation || []}
+            <VitalCard
+              data={vitalsData.oxygenSaturation}
               title="Oxygen Saturation"
               unit="%"
               color="hsl(var(--success))"
               normalRange={{ min: 95, max: 100 }}
             />
-            <VitalChart
-              data={vitalsData.respirationRate || []}
+            <VitalCard
+              data={vitalsData.respirationRate}
               title="Respiration Rate"
               unit="breaths/min"
               color="hsl(var(--accent-foreground))"
@@ -178,10 +256,13 @@ export function VitalsDashboard({ patientId, patientName, isRealTime = true }: V
           </div>
         </TabsContent>
 
+        {/* ------------------------- */}
+        {/* Cardiac Tab */}
+        {/* ------------------------- */}
         <TabsContent value="cardiac" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <VitalChart
-              data={vitalsData.heartRate || []}
+            <VitalCard
+              data={vitalsData.heartRate}
               title="Heart Rate"
               unit="bpm"
               color="hsl(var(--destructive))"
@@ -206,17 +287,20 @@ export function VitalsDashboard({ patientId, patientName, isRealTime = true }: V
           </div>
         </TabsContent>
 
+        {/* ------------------------- */}
+        {/* Respiratory Tab */}
+        {/* ------------------------- */}
         <TabsContent value="respiratory" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <VitalChart
-              data={vitalsData.respirationRate || []}
+            <VitalCard
+              data={vitalsData.respirationRate}
               title="Respiration Rate"
               unit="breaths/min"
               color="hsl(var(--accent-foreground))"
               normalRange={{ min: 12, max: 20 }}
             />
-            <VitalChart
-              data={vitalsData.oxygenSaturation || []}
+            <VitalCard
+              data={vitalsData.oxygenSaturation}
               title="Oxygen Saturation"
               unit="%"
               color="hsl(var(--success))"
@@ -225,10 +309,13 @@ export function VitalsDashboard({ patientId, patientName, isRealTime = true }: V
           </div>
         </TabsContent>
 
+        {/* ------------------------- */}
+        {/* Temperature Tab */}
+        {/* ------------------------- */}
         <TabsContent value="temperature" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <VitalChart
-              data={vitalsData.temperature || []}
+            <VitalCard
+              data={vitalsData.temperature}
               title="Body Temperature"
               unit="°F"
               color="hsl(var(--warning))"
@@ -253,20 +340,23 @@ export function VitalsDashboard({ patientId, patientName, isRealTime = true }: V
           </div>
         </TabsContent>
 
+        {/* ------------------------- */}
+        {/* Blood Pressure Tab */}
+        {/* ------------------------- */}
         <TabsContent value="blood-pressure" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <VitalChart
-              data={vitalsData.bloodPressureSystolic || []}
+            <VitalCard
+              data={vitalsData.bloodPressureSystolic}
               title="Systolic Pressure"
               unit="mmHg"
               color="hsl(var(--primary))"
               normalRange={{ min: 90, max: 140 }}
             />
-            <VitalChart
-              data={vitalsData.bloodPressureDiastolic || []}
+            <VitalCard
+              data={vitalsData.bloodPressureDiastolic}
               title="Diastolic Pressure"
               unit="mmHg"
-              color="hsl(var(--primary-glow))"
+              color="hsl(var(--primary))"
               normalRange={{ min: 60, max: 90 }}
             />
           </div>
